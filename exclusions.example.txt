@@ -1,0 +1,4 @@
+# One protected Telegram username or numeric user ID per line.
+# Numeric IDs are safer because usernames can change.
+@example_username
+123456789
