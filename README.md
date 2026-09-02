@@ -1,29 +1,14 @@
 # Telegram Automations
 
-Reusable local Python and [Telethon](https://docs.telethon.dev/) commands for
-Telegram scripts and automations. The repository provides one CLI, one account
-configuration, and shared Telegram connection and error handling so each new
-automation only needs its arguments and domain logic.
+[![CI](https://github.com/ihoru/telegram-automations/actions/workflows/ci.yml/badge.svg)](https://github.com/ihoru/telegram-automations/actions/workflows/ci.yml)
 
-> [!WARNING]
-> These commands act through a Telegram user account. Telegram may restrict or
-> ban accounts that perform automated or high-volume actions. Test with a
-> separate account and group, review every dry run, use small batches, and never
-> try to bypass a Telegram rate limit.
+A safety-first Python and [Telethon](https://docs.telethon.dev/) CLI for auditable
+Telegram poll analysis and group cleanup.
 
-## Contents
-
-- [Commands](#commands)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Poll participants without an answer](#poll-participants-without-an-answer)
-- [Export poll non-voters](#export-poll-non-voters)
-- [Review and remove non-voters](#review-and-remove-non-voters)
-- [Adding a command](#adding-a-command)
-- [Development](#development)
-- [Data security](#data-security)
-- [License](#license)
+The toolkit consolidates several one-off automations behind one account configuration,
+shared Telegram adapters, and independently testable decision policy. Destructive
+commands default to a live-rechecked dry run and require both `--execute` and typed
+confirmation before removing anyone.
 
 ## Commands
 
@@ -39,6 +24,22 @@ Every command is available through either entry point:
 telegram-automations --help
 python -m telegram_automations --help
 ```
+
+## Safety model
+
+- Read-only analysis refuses incomplete voter or member snapshots.
+- Exports exclude administrators, recent joiners, unverifiable members, and explicit
+  protected accounts.
+- Removal reloads the poll and membership before the run, then rechecks each candidate
+  immediately before acting.
+- Limits, randomized delays, audit records, and stop-on-rate-limit behavior bound the
+  impact of a bad or interrupted run.
+
+> [!WARNING]
+> These commands act through a Telegram user account. Telegram may restrict or
+> ban accounts that perform automated or high-volume actions. Test with a
+> separate account and group, review every dry run, use small batches, and never
+> try to bypass a Telegram rate limit.
 
 ## Requirements
 
