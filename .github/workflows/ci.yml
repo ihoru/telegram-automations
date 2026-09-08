@@ -42,6 +42,7 @@ jobs:
         run: |
           telegram-automations --help
           telegram-automations poll --help
+          telegram-automations poll check-payments --help
           telegram-automations poll list-without-answer --help
           telegram-automations poll list-non-voters --help
           telegram-automations poll remove-non-voters --help

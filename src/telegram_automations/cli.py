@@ -6,6 +6,7 @@ from pathlib import Path
 
 from telegram_automations import __version__
 from telegram_automations.commands import (
+    check_payments,
     list_non_voters,
     list_without_answer,
     remove_non_voters,
@@ -13,6 +14,11 @@ from telegram_automations.commands import (
 from telegram_automations.runtime import main as runtime_main
 
 POLL_COMMANDS = (
+    (
+        "check-payments",
+        "Compare selected poll voters with payment messages in a forum topic.",
+        check_payments,
+    ),
     (
         "list-without-answer",
         "List poll participants who did not select one exact answer.",

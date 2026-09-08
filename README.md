@@ -14,6 +14,7 @@ confirmation before removing anyone.
 
 | Command | Purpose | Telegram writes |
 | --- | --- | --- |
+| `poll check-payments` | Compare a poll option's voters with message authors and mentions in a forum topic | None |
 | `poll list-without-answer` | List poll participants who did not select one exact answer | None |
 | `poll list-non-voters` | Export current group members who did not vote in a closed poll | Local JSON only |
 | `poll remove-non-voters` | Recheck an export and optionally remove eligible members | Only with `--execute` and typed confirmation |
@@ -135,6 +136,51 @@ Open polls are allowed, but the result is only a point-in-time snapshot. The
 command aborts if the voter count changes while pages are being retrieved.
 Multiple-choice and free-text vote records are supported; Telegram does not
 expose the submitted free-text value.
+
+## Check payment messages against a poll option
+
+This read-only command compares the people who selected one poll option with
+message authors and explicitly mentioned users in a forum topic in the same group.
+
+```bash
+telegram-automations poll check-payments \
+  --option "https://t.me/c/1234567890/42?option=MQ" \
+  --since-message "https://t.me/c/1234567890/30/31"
+```
+
+Alternatively, select the answer with `--poll-link` and exact, case-sensitive
+`--answer` text instead of `--option`. The `--since-message` link must identify
+both the forum topic and its starting message. That message is excluded; only
+later messages and replies within that topic count, up to the cutoff captured at startup.
+Other topics and older messages are excluded.
+
+Any ordinary message counts for its author, including a photo or document without
+a caption. Explicit `@username` and Telegram user mentions in message text or an
+attachment caption also count for the mentioned person. Usernames are resolved
+without case sensitivity; people are matched by Telegram ID. Service messages,
+forwarded-author headers, and reply headers do not count as payment by another
+person. Attachment contents and payment amounts are not inspected.
+
+The report prints three disjoint lists in this order:
+
+1. Selected the option, but no payment message or mention was found.
+2. Did not select the option, but payment was counted.
+3. Selected the option and payment was counted.
+
+For example, if `@a`, `@b`, `@c`, and `@d` selected the option, `@a` wrote
+"for two @b", `@c` uploaded a photo, and `@f` posted a message, the lists contain
+`@d`; `@f`; and `@a`, `@b`, `@c`, respectively. Selecting a different answer still
+belongs in the second list when payment is counted.
+
+Each person appears once in their list. People credited by the same first message
+are grouped together, and all source-message links retain author and mention
+attribution. Each username row includes a plain `https://t.me/username` profile URL
+for convenient opening from a terminal. Users without usernames are shown by name
+and ID. Unresolved mentions
+and unidentified authors appear under **Needs review**; they are not guessed from
+display names. Counts, timestamps, and the message range describe the snapshot;
+an open poll is marked as changeable. A payment status means only that the
+message-or-mention rule matched.
 
 ## Export poll non-voters
 
