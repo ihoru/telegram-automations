@@ -3,9 +3,12 @@ from __future__ import annotations
 import io
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from telethon import types
 
 from telegram_automations.cli import build_parser
 from telegram_automations.commands import check_payments
@@ -83,6 +86,41 @@ def fixture() -> tuple[PaymentReport, VoteSnapshot, TopicSnapshot, SimpleNamespa
 
 
 class PaymentRenderingTests(unittest.TestCase):
+    def test_without_media_section_precedes_selected_option_list(self) -> None:
+        report, votes, topic, answer = fixture()
+        topic = replace(
+            topic,
+            messages=tuple(
+                types.Message(
+                    id=number,
+                    peer_id=types.PeerChannel(1234567890),
+                    message="Paid",
+                    media=types.MessageMediaPhoto() if number in (32, 35) else None,
+                )
+                for number in (31, 32, 34, 35)
+            ),
+        )
+        output = io.StringIO()
+        with redirect_stdout(output):
+            check_payments.print_payment_report(
+                report,
+                poll=SimpleNamespace(question="Bath?", closed=True),
+                target_answer=answer,
+                votes=votes,
+                topic=topic,
+            )
+        text = output.getvalue()
+        title = "Sent messages without media (possibly cash) (2):"
+        selected = "Selected the option, payment counted (3):"
+        self.assertLess(text.index("Did not select the option"), text.index(title))
+        self.assertLess(text.index(title), text.index(selected))
+        section = text.split(title)[1].split(selected)[0]
+        self.assertIn("https://t.me/a", section)
+        self.assertIn("https://t.me/f", section)
+        self.assertNotIn("@b", section)
+        self.assertNotIn("@c", section)
+        self.assertIn("/30/31 — from @a", section)
+
     def render(
         self, report: PaymentReport, *, closed: bool = True
     ) -> str:

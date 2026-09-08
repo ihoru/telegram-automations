@@ -283,6 +283,30 @@ def partition_payments(
     )
 
 
+def senders_without_media(
+    report: PaymentReport, topic: TopicSnapshot
+) -> tuple[PaymentRecord, ...]:
+    message_ids = {
+        message.id
+        for message in topic.messages
+        if isinstance(message, types.Message)
+        and (
+            message.media is None
+            or isinstance(message.media, types.MessageMediaEmpty)
+        )
+    }
+    records = []
+    for record in (*report.paid_without_option, *report.paid_with_option):
+        evidence = tuple(
+            item
+            for item in record.evidence
+            if item.kind == "sender" and item.message_id in message_ids
+        )
+        if evidence:
+            records.append(PaymentRecord(record.user, evidence))
+    return tuple(records)
+
+
 async def reconcile_payments(
     client: TelegramClient,
     votes: VoteSnapshot,

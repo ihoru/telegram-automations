@@ -23,6 +23,7 @@ from telegram_automations.polls.payments import (
     TopicSnapshot,
     load_topic_snapshot,
     reconcile_payments,
+    senders_without_media,
 )
 from telegram_automations.runtime import CommandRuntime, ErrorPolicy
 
@@ -150,6 +151,12 @@ def print_payment_report(
     print()
     _print_paid_section(
         "Did not select the option, payment counted", report.paid_without_option, users
+    )
+    print()
+    _print_paid_section(
+        "Sent messages without media (possibly cash)",
+        senders_without_media(report, topic),
+        users,
     )
     print()
     _print_paid_section(

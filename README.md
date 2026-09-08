@@ -167,6 +167,13 @@ The report prints three disjoint lists in this order:
 2. Did not select the option, but payment was counted.
 3. Selected the option and payment was counted.
 
+Immediately before the third list, **Sent messages without media (possibly cash)**
+shows authors of at least one ordinary message without media, with profile and
+source-message links. This supplementary list includes authors regardless of their
+poll choice, and they remain in their main lists. Mentions alone do not qualify;
+posting a photo or file as well does not remove an author from this list.
+The list indicates possible cash payments, not confirmed payment methods.
+
 For example, if `@a`, `@b`, `@c`, and `@d` selected the option, `@a` wrote
 "for two @b", `@c` uploaded a photo, and `@f` posted a message, the lists contain
 `@d`; `@f`; and `@a`, `@b`, `@c`, respectively. Selecting a different answer still

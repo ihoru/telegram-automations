@@ -15,6 +15,7 @@ from telegram_automations.polls.payments import (
     TopicSnapshot,
     parse_topic_message_link,
     reconcile_payments,
+    senders_without_media,
 )
 
 NOW = datetime(2026, 9, 8, 12, tzinfo=timezone.utc)
@@ -143,6 +144,33 @@ class TopicMessageLinkTests(unittest.TestCase):
 
 
 class ReconcilePaymentsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_without_media_lists_authors_once_and_only_text_evidence(self) -> None:
+        a, b, c, f = [user(index, name) for index, name in enumerate("abcf", 1)]
+        snapshot = topic(
+            [
+                message(START_ID, a, "Cash for @b"),
+                message(START_ID + 1, a, media=types.MessageMediaPhoto()),
+                message(START_ID + 2, c, media=types.MessageMediaDocument()),
+                message(START_ID + 3, f, "Cash", media=types.MessageMediaEmpty()),
+                message(START_ID + 4, a, "Paid"),
+            ]
+        )
+        report = await reconcile_payments(
+            EntityClient([a, b, c, f]), votes([a, b, c]), b"yes", snapshot
+        )
+
+        records = senders_without_media(report, snapshot)
+
+        self.assertEqual({record.user.id for record in records}, {a.id, f.id})
+        self.assertEqual(len(records), 2)
+        by_id = {record.user.id: record for record in records}
+        self.assertEqual(
+            [item.message_id for item in by_id[a.id].evidence],
+            [START_ID, START_ID + 4],
+        )
+        self.assertEqual(len(report.paid_with_option), 3)
+        self.assertEqual(len(report.paid_without_option), 1)
+
     async def test_start_message_credits_neither_author_nor_mentions(self) -> None:
         a, b, c = user(1, "alice"), user(2, "bob"), user(3, "carol")
         snapshot = topic(
