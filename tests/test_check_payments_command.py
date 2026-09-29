@@ -105,7 +105,7 @@ class PaymentRenderingTests(unittest.TestCase):
             check_payments.print_payment_report(
                 report,
                 poll=SimpleNamespace(question="Bath?", closed=True),
-                target_answer=answer,
+                target_answers=(answer,),
                 votes=votes,
                 topic=topic,
             )
@@ -130,7 +130,7 @@ class PaymentRenderingTests(unittest.TestCase):
             check_payments.print_payment_report(
                 report,
                 poll=SimpleNamespace(question="Bath?", closed=closed),
-                target_answer=answer,
+                target_answers=(answer,),
                 votes=votes,
                 topic=topic,
             )
@@ -203,9 +203,87 @@ class PaymentRenderingTests(unittest.TestCase):
 
 
 class PaymentCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiple_options_are_deduplicated_and_reported(self) -> None:
+        report, votes, topic, answer = fixture()
+        votes = replace(votes, voters=(
+            replace(votes.voters[0], selected_options=frozenset({b"1", b"2"})),
+            replace(votes.voters[1], selected_options=frozenset({b"2"})),
+            replace(votes.voters[2], selected_options=frozenset({b"3"})),
+            votes.voters[3],
+        ))
+        context = SimpleNamespace(
+            chat=topic.chat, message=SimpleNamespace(id=42),
+            poll=SimpleNamespace(question="Bath?", closed=True, answers=[
+                answer, SimpleNamespace(text="Maybe", option=b"2"),
+            ]),
+        )
+        args = build_parser().parse_args([
+            "poll", "check-payments",
+            "--option", "https://t.me/c/1234567890/42?option=MQ",
+            "--option", "https://t.me/c/1234567890/42?option=Mg",
+            "--option", "https://t.me/c/1234567890/42?option=MQ",
+            "--since-message", START_LINK,
+        ])
+        output = io.StringIO()
+        runtime = SimpleNamespace(client=object())
+        with (
+            patch.object(check_payments, "load_poll_context",
+                         AsyncMock(return_value=context)) as load,
+            patch.object(check_payments, "load_topic_snapshot",
+                         AsyncMock(return_value=topic)),
+            patch.object(check_payments, "fetch_vote_snapshot",
+                         AsyncMock(return_value=votes)) as fetch,
+            patch.object(check_payments, "reconcile_payments",
+                         AsyncMock(return_value=report)) as reconcile,
+            redirect_stdout(output),
+        ):
+            self.assertEqual(await check_payments.run(args, runtime), 0)
+        load.assert_awaited_once()
+        fetch.assert_awaited_once()
+        reconcile.assert_awaited_once_with(
+            runtime.client, votes, frozenset({b"1", b"2"}), topic
+        )
+        self.assertIn("Selected answers:\n  Yes\n  Maybe\n", output.getvalue())
+        self.assertIn("Voters who selected any selected option: 3", output.getvalue())
+
+    async def test_bad_additional_option_prints_no_partial_report(self) -> None:
+        _, _, topic, answer = fixture()
+        context = SimpleNamespace(
+            chat=topic.chat, message=SimpleNamespace(id=42),
+            poll=SimpleNamespace(answers=[answer]),
+        )
+        for link, error, loads in (
+            ("https://t.me/c/1234567890/43?option=MQ", "same poll", 0),
+            ("https://t.me/c/9876543210/42?option=MQ", "same poll", 0),
+            ("https://t.me/c/1234567890/42?option=Mg", "does not exist", 1),
+            ("https://t.me/c/1234567890/42?option=", "non-empty", 0),
+        ):
+            with self.subTest(link=link):
+                args = build_parser().parse_args([
+                    "poll", "check-payments",
+                    "--option", "https://t.me/c/1234567890/42?option=MQ",
+                    "--option", link, "--since-message", START_LINK,
+                ])
+                output = io.StringIO()
+                with (
+                    patch.object(check_payments, "load_poll_context",
+                                 AsyncMock(return_value=context)) as load,
+                    patch.object(check_payments, "load_topic_snapshot") as load_topic,
+                    redirect_stdout(output),
+                    self.assertRaisesRegex(AutomationError, error),
+                ):
+                    await check_payments.run(args, SimpleNamespace(client=object()))
+                self.assertEqual(load.await_count, loads)
+                load_topic.assert_not_called()
+                self.assertEqual(output.getvalue(), "")
+
     async def test_command_selects_answer_and_captures_topic_before_votes(self) -> None:
         for selector in (
             ["--option", "https://t.me/c/1234567890/42?option=MQ"],
+            [
+                "--option", "https://t.me/c/1234567890/42?option=MQ",
+                "--option", "https://t.me/c/1234567890/42?option=MQ",
+            ],
             ["--poll-link", "https://t.me/c/1234567890/42", "--answer", "Yes"],
         ):
             with self.subTest(selector=selector):
@@ -264,7 +342,7 @@ class PaymentCommandTests(unittest.IsolatedAsyncioTestCase):
                     runtime.client, START_LINK, context.chat
                 )
                 fetch_votes.assert_awaited_once_with(runtime.client, context.chat, 42)
-                reconcile.assert_awaited_once_with(runtime.client, votes, b"1", topic)
+                reconcile.assert_awaited_once_with(runtime.client, votes, frozenset({b"1"}), topic)
 
     async def test_invalid_selector_stops_before_loading_data(self) -> None:
         for selector in (

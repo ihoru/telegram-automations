@@ -144,6 +144,24 @@ class TopicMessageLinkTests(unittest.TestCase):
 
 
 class ReconcilePaymentsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiple_options_union_all_payment_categories(self) -> None:
+        people = [user(index) for index in range(1, 6)]
+        selections = ({b"a", b"b"}, {b"b"}, {b"a"}, {b"b"}, {b"other"})
+        snapshot = VoteSnapshot(
+            voters=tuple(
+                VoterRecord(person.id, None, person.first_name, None, frozenset(options))
+                for person, options in zip(people, selections, strict=True)
+            ),
+            captured_at=NOW,
+        )
+        report = await reconcile_payments(
+            EntityClient(people), snapshot, frozenset({b"a", b"b"}),
+            topic([message(START_ID + index, people[index]) for index in (0, 1, 4)]),
+        )
+        self.assertEqual([record.user.id for record in report.paid_with_option], [1, 2])
+        self.assertEqual([person.id for person in report.missing], [3, 4])
+        self.assertEqual([record.user.id for record in report.paid_without_option], [5])
+
     async def test_without_media_lists_authors_once_and_only_text_evidence(self) -> None:
         a, b, c, f = [user(index, name) for index, name in enumerate("abcf", 1)]
         snapshot = topic(

@@ -310,7 +310,7 @@ def senders_without_media(
 async def reconcile_payments(
     client: TelegramClient,
     votes: VoteSnapshot,
-    target_option: bytes,
+    target_options: bytes | frozenset[bytes],
     topic: TopicSnapshot,
 ) -> PaymentReport:
     messages = [
@@ -327,8 +327,10 @@ async def reconcile_payments(
         if isinstance(message.sender, types.User)
     )
     resolver = _IdentityResolver(client, known_users)
+    if isinstance(target_options, bytes):
+        target_options = frozenset({target_options})
     selected_ids = {
-        voter.id for voter in votes.voters if target_option in voter.selected_options
+        voter.id for voter in votes.voters if voter.selected_options & target_options
     }
     evidence: dict[int, list[PaymentEvidence]] = {}
     review: list[ReviewItem] = []

@@ -4,7 +4,7 @@ import argparse
 from collections import defaultdict
 from typing import Any
 
-from telegram_automations.common import display_text, load_poll_context
+from telegram_automations.common import AutomationError, display_text, load_poll_context
 from telegram_automations.polls.answer_filter import (
     VoteSnapshot,
     answer_text,
@@ -13,7 +13,6 @@ from telegram_automations.polls.answer_filter import (
     resolve_target_request,
     select_exact_answer,
     select_option_answer,
-    voters_with_answer_count,
 )
 from telegram_automations.polls.payments import (
     PaymentEvidence,
@@ -32,8 +31,8 @@ ERROR_POLICY = ErrorPolicy()
 
 def configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.description = (
-        "Compare people who selected one poll answer with message authors and "
-        "mentioned users in a forum topic. A message or mention counts as payment."
+        "Compare people who selected any of the chosen poll answers with message "
+        "authors and mentioned users in a forum topic. A message or mention counts as payment."
     )
     parser.add_argument(
         "--poll-link",
@@ -45,9 +44,10 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--option",
+        action="append",
         help=(
             "t.me poll-option link containing ?option=...; replaces both "
-            "--poll-link and --answer"
+            "--poll-link and --answer; repeat for multiple options from the same poll"
         ),
     )
     parser.add_argument(
@@ -133,10 +133,12 @@ def print_payment_report(
     report: PaymentReport,
     *,
     poll: Any,
-    target_answer: Any,
+    target_answers: tuple[Any, ...],
     votes: VoteSnapshot,
     topic: TopicSnapshot,
 ) -> None:
+    target_options = frozenset(bytes(answer.option) for answer in target_answers)
+    option_label = "the option" if len(target_options) == 1 else "any selected option"
     users = {
         record.user.id: record.user
         for record in (*report.paid_without_option, *report.paid_with_option)
@@ -150,7 +152,9 @@ def print_payment_report(
         print("  (none)")
     print()
     _print_paid_section(
-        "Did not select the option, payment counted", report.paid_without_option, users
+        f"Did not select {option_label}, payment counted",
+        report.paid_without_option,
+        users,
     )
     print()
     _print_paid_section(
@@ -160,7 +164,7 @@ def print_payment_report(
     )
     print()
     _print_paid_section(
-        "Selected the option, payment counted", report.paid_with_option, users
+        f"Selected {option_label}, payment counted", report.paid_with_option, users
     )
     if report.review:
         print()
@@ -170,13 +174,18 @@ def print_payment_report(
 
     print()
     print(f"Poll: {display_text(poll_question(poll), limit=None)}")
-    print(f"Selected answer: {display_text(answer_text(target_answer), limit=None)}")
+    if len(target_answers) == 1:
+        print(f"Selected answer: {display_text(answer_text(target_answers[0]), limit=None)}")
+    else:
+        print("Selected answers:")
+        for answer in target_answers:
+            print(f"  {display_text(answer_text(answer), limit=None)}")
     closed = bool(getattr(poll, "closed", False))
     print(f"Poll state: {'closed' if closed else 'open'}")
     print(f"Unique voters retrieved: {votes.total_voters}")
     print(
-        "Voters who selected the option: "
-        f"{voters_with_answer_count(votes, target_answer.option)}"
+        f"Voters who selected {option_label}: "
+        f"{sum(bool(voter.selected_options & target_options) for voter in votes.voters)}"
     )
     print(f"Vote snapshot captured at: {votes.captured_at.isoformat()}")
     print(f"Message snapshot captured at: {topic.captured_at.isoformat()}")
@@ -196,28 +205,39 @@ def print_payment_report(
 
 
 async def run(args: argparse.Namespace, runtime: CommandRuntime) -> int:
-    target_request = resolve_target_request(
-        poll_link=args.poll_link,
-        answer=args.answer,
-        option_link=args.option,
-    )
+    requests = [
+        resolve_target_request(
+            poll_link=args.poll_link,
+            answer=args.answer,
+            option_link=option_link,
+        )
+        for option_link in (args.option or [None])
+    ]
+    target_request = requests[0]
+    if any(request.location != target_request.location for request in requests):
+        raise AutomationError("All --option links must refer to the same poll.")
     context = await load_poll_context(
         runtime.client,
         target_request.location.chat_ref,
         target_request.location.message_id,
     )
     if target_request.answer_text is not None:
-        target_answer = select_exact_answer(context.poll, target_request.answer_text)
+        target_answers = (select_exact_answer(context.poll, target_request.answer_text),)
     else:
-        assert target_request.option is not None
-        target_answer = select_option_answer(context.poll, target_request.option)
+        options = dict.fromkeys(request.option for request in requests)
+        target_answers = tuple(
+            select_option_answer(context.poll, option)
+            for option in options
+            if option is not None
+        )
     topic = await load_topic_snapshot(runtime.client, args.since_message, context.chat)
     votes = await fetch_vote_snapshot(runtime.client, context.chat, context.message.id)
-    report = await reconcile_payments(runtime.client, votes, target_answer.option, topic)
+    target_options = frozenset(bytes(answer.option) for answer in target_answers)
+    report = await reconcile_payments(runtime.client, votes, target_options, topic)
     print_payment_report(
         report,
         poll=context.poll,
-        target_answer=target_answer,
+        target_answers=target_answers,
         votes=votes,
         topic=topic,
     )

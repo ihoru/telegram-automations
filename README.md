@@ -14,7 +14,7 @@ confirmation before removing anyone.
 
 | Command | Purpose | Telegram writes |
 | --- | --- | --- |
-| `poll check-payments` | Compare a poll option's voters with message authors and mentions in a forum topic | None |
+| `poll check-payments` | Compare selected poll options’ voters with message authors and mentions in a forum topic | None |
 | `poll list-without-answer` | List poll participants who did not select one exact answer | None |
 | `poll list-non-voters` | Export current group members who did not vote in a closed poll | Local JSON only |
 | `poll remove-non-voters` | Recheck an export and optionally remove eligible members | Only with `--execute` and typed confirmation |
@@ -137,16 +137,20 @@ command aborts if the voter count changes while pages are being retrieved.
 Multiple-choice and free-text vote records are supported; Telegram does not
 expose the submitted free-text value.
 
-## Check payment messages against a poll option
+## Check payment messages against poll options
 
-This read-only command compares the people who selected one poll option with
+This read-only command compares the people who selected any of the chosen poll options with
 message authors and explicitly mentioned users in a forum topic in the same group.
 
 ```bash
 telegram-automations poll check-payments \
   --option "https://t.me/c/1234567890/42?option=MQ" \
+  --option "https://t.me/c/1234567890/42?option=Mg" \
   --since-message "https://t.me/c/1234567890/30/31"
 ```
+
+Repeat `--option` to combine options from the same poll. Each person is counted
+once, even if they selected several options; duplicate option links are ignored.
 
 Alternatively, select the answer with `--poll-link` and exact, case-sensitive
 `--answer` text instead of `--option`. The `--since-message` link must identify
@@ -163,9 +167,9 @@ person. Attachment contents and payment amounts are not inspected.
 
 The report prints three disjoint lists in this order:
 
-1. Selected the option, but no payment message or mention was found.
-2. Did not select the option, but payment was counted.
-3. Selected the option and payment was counted.
+1. Selected at least one chosen option, but no payment message or mention was found.
+2. Did not select any chosen option, but payment was counted.
+3. Selected at least one chosen option and payment was counted.
 
 Immediately before the third list, **Sent messages without media (possibly cash)**
 shows authors of at least one ordinary message without media, with profile and
