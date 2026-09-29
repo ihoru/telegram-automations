@@ -149,10 +149,23 @@ run with a nonzero exit code; earlier parts may already have been delivered.
 
 For cron, sign in interactively first with the same configuration directory.
 Without a terminal, an unauthorized session fails with a clear error instead of
-prompting. Example hourly cron entry (replace paths and poll URL):
+prompting. The `scripts/run_check.sh` wrapper accepts exactly three arguments:
+
+```bash
+./scripts/run_check.sh "https://t.me/c/1234567890/42" 15 @recipient
+```
+
+It finds the project and its `.venv` relative to the script, uses the project as
+`--config-dir`, and timestamps both stdout and stderr in
+`${XDG_CACHE_HOME:-$HOME/.cache}/telegram-poll-check.log`. A shared lock in the
+same directory prevents overlapping checks; a busy lock skips the run successfully.
+Command failures retain their nonzero exit status. Log output is appended;
+rotation is not configured.
+
+Example hourly cron entry (replace the script path and poll URL):
 
 ```cron
-0 * * * * /path/to/telegram-automations/.venv/bin/telegram-automations --config-dir /path/to/private/config poll check --poll-link "https://t.me/c/1234567890/42" --send-to-user @recipient >> /path/to/private/config/poll-check.log 2>&1
+0 * * * * /path/to/telegram-automations/scripts/run_check.sh "https://t.me/c/1234567890/42" 15 @recipient
 ```
 
 This example does not install a cron job.
