@@ -183,6 +183,7 @@ async def load_poll_context(
     message_id: int,
     *,
     require_closed: bool = False,
+    require_public_voters: bool = True,
 ) -> PollContext:
     chat = await resolve_chat(client, chat_ref)
     ensure_supported_group(chat)
@@ -194,7 +195,7 @@ async def load_poll_context(
         raise AutomationError("The specified message does not contain a poll.")
 
     poll = message.media.poll
-    if not bool(getattr(poll, "public_voters", False)):
+    if require_public_voters and not bool(getattr(poll, "public_voters", False)):
         raise AutomationError(
             "The poll is anonymous, so Telegram does not expose voter identities."
         )

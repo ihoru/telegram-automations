@@ -6,6 +6,7 @@ from pathlib import Path
 
 from telegram_automations import __version__
 from telegram_automations.commands import (
+    check,
     check_payments,
     list_non_voters,
     list_without_answer,
@@ -14,6 +15,7 @@ from telegram_automations.commands import (
 from telegram_automations.runtime import main as runtime_main
 
 POLL_COMMANDS = (
+    ("check", "Report poll options that reached a minimum vote count.", check),
     (
         "check-payments",
         "Compare selected poll voters with payment messages in a forum topic.",

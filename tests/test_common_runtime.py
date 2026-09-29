@@ -43,6 +43,8 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_uses_one_client_and_always_disconnects(self) -> None:
         client = SimpleNamespace(
             start=AsyncMock(),
+            connect=AsyncMock(),
+            is_user_authorized=AsyncMock(return_value=True),
             get_me=AsyncMock(return_value=SimpleNamespace(id=7, bot=False)),
             disconnect=AsyncMock(),
         )
@@ -68,6 +70,25 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         runtime = handler.await_args.args[1]
         self.assertIs(runtime.client, client)
         self.assertEqual(runtime.config, config)
+
+    async def test_cron_without_authorization_does_not_prompt(self) -> None:
+        client = SimpleNamespace(
+            connect=AsyncMock(), is_user_authorized=AsyncMock(return_value=False),
+            start=AsyncMock(), disconnect=AsyncMock(),
+        )
+        args = argparse.Namespace(config_dir=Path("."), command_handler=AsyncMock())
+        config = AppConfig(123, "hash", Path("session"))
+        with (
+            patch("telegram_automations.runtime.load_config", return_value=config),
+            patch("telegram_automations.runtime.create_client", return_value=client),
+            patch("telegram_automations.runtime.tighten_session_permissions"),
+            patch("sys.stdin.isatty", return_value=False),
+            self.assertRaisesRegex(AutomationError, "Run interactively once"),
+        ):
+            await execute_command(args)
+        client.start.assert_not_awaited()
+        args.command_handler.assert_not_awaited()
+        client.disconnect.assert_awaited_once()
 
 
 class RuntimeErrorTests(unittest.TestCase):

@@ -14,6 +14,7 @@ confirmation before removing anyone.
 
 | Command | Purpose | Telegram writes |
 | --- | --- | --- |
+| `poll check` | Report options with at least the minimum vote count | Only with `--send-to-user USER` and matching options |
 | `poll check-payments` | Compare selected poll options’ voters with message authors and mentions in a forum topic | None |
 | `poll list-without-answer` | List poll participants who did not select one exact answer | None |
 | `poll list-non-voters` | Export current group members who did not vote in a closed poll | Local JSON only |
@@ -103,6 +104,58 @@ telegram-automations --config-dir /path/to/private/config poll list-non-voters \
 
 Output paths such as `non_voters.json` and `removal_results.jsonl` remain
 relative to the current working directory unless an explicit path is supplied.
+
+## Check poll vote counts
+
+```bash
+telegram-automations poll check \
+  --poll-link "https://t.me/c/1234567890/42" \
+  --minimum 15
+```
+
+`--poll-link` is required. `--minimum` is a positive integer, defaults to 15,
+and is inclusive: an option with exactly 15 votes qualifies. All options,
+including those starting with emoji, are considered in their original order.
+Open, closed, and anonymous group polls are supported using aggregate counts;
+no voter identities are retrieved. Hidden or incomplete results cause an error;
+the command never votes automatically.
+
+Example output:
+
+```text
+Poll: Which day works for you?
+https://t.me/c/1234567890/42
+
+Options with at least 15 votes:
+• Friday — 18 votes
+• Saturday — 15 votes
+• 👋 Pass — 20 votes
+```
+
+Add `--send-to-user USER` to send the same plain-text report to an explicit recipient.
+There is no default recipient:
+
+```bash
+telegram-automations poll check \
+  --poll-link "https://t.me/c/1234567890/42" --send-to-user @recipient
+```
+
+Without `--send-to-user`, nothing is sent. With no qualifying options, the command prints
+`No options with at least 15 votes.`, exits successfully, and sends nothing.
+Every invocation with matching options sends again; there is no notification history.
+After all parts are sent, the command prints `Report sent to @recipient.`
+Long reports are split into Telegram-sized messages. A delivery error stops the
+run with a nonzero exit code; earlier parts may already have been delivered.
+
+For cron, sign in interactively first with the same configuration directory.
+Without a terminal, an unauthorized session fails with a clear error instead of
+prompting. Example hourly cron entry (replace paths and poll URL):
+
+```cron
+0 * * * * /path/to/telegram-automations/.venv/bin/telegram-automations --config-dir /path/to/private/config poll check --poll-link "https://t.me/c/1234567890/42" --send-to-user @recipient >> /path/to/private/config/poll-check.log 2>&1
+```
+
+This example does not install a cron job.
 
 ## Poll participants without an answer
 

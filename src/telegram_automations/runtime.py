@@ -48,6 +48,13 @@ async def execute_command(args: argparse.Namespace) -> int:
     config = load_config(config_dir)
     client = create_client(config)
     try:
+        if not sys.stdin.isatty():
+            await client.connect()
+            if not await client.is_user_authorized():
+                raise AutomationError(
+                    "No authorized session is available. Run interactively once "
+                    "with the same --config-dir to sign in before using cron."
+                )
         await client.start(
             phone=lambda: input(
                 "Please enter your phone number (bot tokens are not supported): "
