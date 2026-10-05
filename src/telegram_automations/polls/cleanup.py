@@ -173,7 +173,7 @@ async def fetch_all_participants(client: TelegramClient, chat: Any) -> list[Any]
     ):
         raise CleanupError(
             f"Incomplete member list: received {len(result)} of {count_after}. "
-            "Removal based on incomplete data is not allowed."
+            "Exporting an incomplete list is not allowed."
         )
     return list(result)
 

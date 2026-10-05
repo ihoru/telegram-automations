@@ -7,6 +7,7 @@ from pathlib import Path
 
 from telegram_automations.cli import build_parser
 from telegram_automations.commands import (
+    all_members,
     check_payments,
     list_non_voters,
     list_without_answer,
@@ -26,6 +27,25 @@ class GroupedParserTests(unittest.TestCase):
             with self.subTest(name=name):
                 args = build_parser().parse_args(["poll", name])
                 self.assertIs(args.command_handler, handler)
+
+    def test_routes_members_all_and_requires_chat(self) -> None:
+        args = build_parser().parse_args(["members", "all", "--chat", "-100123"])
+        self.assertIs(args.command_handler, all_members.run)
+        self.assertIs(args.error_policy, all_members.ERROR_POLICY)
+        self.assertEqual(args.chat, "-100123")
+        self.assertFalse(args.new_line)
+        for flag in ("--new-line", "-nl"):
+            with self.subTest(flag=flag):
+                option_args = build_parser().parse_args(
+                    ["members", "all", "--chat", "-100123", flag]
+                )
+                self.assertTrue(option_args.new_line)
+
+        output = StringIO()
+        with redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+            build_parser().parse_args(["members", "all"])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("--chat", output.getvalue())
 
     def test_config_dir_is_global_and_explicit(self) -> None:
         args = build_parser().parse_args(

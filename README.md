@@ -14,6 +14,7 @@ confirmation before removing anyone.
 
 | Command | Purpose | Telegram writes |
 | --- | --- | --- |
+| `members all` | Print current group members for copying into a Telegram message | None |
 | `poll check` | Report options with at least the minimum vote count | Only with `--send-to-user USER` and matching options |
 | `poll check-payments` | Compare selected poll options’ voters with message authors and mentions in a forum topic | None |
 | `poll list-without-answer` | List poll participants who did not select one exact answer | None |
@@ -104,6 +105,30 @@ telegram-automations --config-dir /path/to/private/config poll list-non-voters \
 
 Output paths such as `non_voters.json` and `removal_results.jsonl` remain
 relative to the current working directory unless an explicit path is supplied.
+
+## List all group members
+
+```bash
+telegram-automations members all --chat "https://t.me/c/2546560986/1"
+# one member per line:
+telegram-automations members all --chat "https://t.me/c/2546560986/1" --new-line
+# short alias: -nl
+# or: telegram-automations members all --chat -1002546560986
+# or, for a public group: telegram-automations members all --chat "@group_username"
+```
+
+For a private group, any message link identifies the group; the message itself
+is not read.
+
+By default, the command prints all members on one line, separated by spaces.
+Use `--new-line` (or `-nl`) to print one member per line. A member appears as
+`@username`, or as `First Last (ID: 123456)` when no username exists. Members
+without a name are shown as `ID: 123456`. Administrators are included; bots
+and the signed-in account are excluded. The output is plain text, ready to
+copy and paste into a Telegram message. Names and numeric IDs do not create Telegram mentions.
+The complete list is printed without splitting it into message-sized blocks.
+Telegram never receives a message from this command. An incomplete member
+snapshot causes an error without printing a partial list.
 
 ## Check poll vote counts
 

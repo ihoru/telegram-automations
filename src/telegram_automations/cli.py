@@ -6,6 +6,7 @@ from pathlib import Path
 
 from telegram_automations import __version__
 from telegram_automations.commands import (
+    all_members,
     check,
     check_payments,
     list_non_voters,
@@ -69,6 +70,22 @@ def build_parser() -> argparse.ArgumentParser:
             command_handler=module.run,
             error_policy=module.ERROR_POLICY,
         )
+    members_parser = groups.add_parser(
+        "members",
+        help="List current group members.",
+    )
+    members_commands = members_parser.add_subparsers(
+        dest="members_command", required=True
+    )
+    all_parser = members_commands.add_parser(
+        "all",
+        help="Print group members as text ready to paste into Telegram.",
+    )
+    all_members.configure_parser(all_parser)
+    all_parser.set_defaults(
+        command_handler=all_members.run,
+        error_policy=all_members.ERROR_POLICY,
+    )
     return parser
 
 
